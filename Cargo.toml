@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+color-eyre = "0.6.3"
 crossterm = "0.28.1"
 radio = "0.12.1"
 rascii_art = "0.4.5"
