@@ -1,12 +1,12 @@
 [package]
-name = "mplay"
+name = "horizon"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 color-eyre = "0.6.3"
 crossterm = "0.28.1"
-radio = "0.12.1"
 rascii_art = "0.4.5"
 ratatui = "0.28.1"
 rodio = "0.19.0"
+symphonia = { version = "0.5.4", features = ["mp3", "isomp4"] }
