@@ -1,5 +1,6 @@
-use std::{fs::File, io::BufReader};
-use ratatui::{text::Text, widgets::ListState};
+use std::{fs::{self, File}, io::BufReader};
+// use color_eyre::owo_colors::OwoColorize;
+use ratatui::{style::Stylize, text::Text, widgets::ListState};
 use rodio::Decoder;
 use symphonia::core::{formats::FormatOptions, io::{MediaSourceStream, MediaSourceStreamOptions}, meta::{Limit, MetadataOptions}};
 use symphonia::default::get_probe;
@@ -7,14 +8,12 @@ use symphonia::default::get_probe;
 
 pub struct Song {
     pub path: String,
-	title: String,
+	pub title: String,
 	artist: String,
     album: String,
     track_num: String,
     album_tracks_total: String,
-    year: String,
-    // source: File,
-    // stream: MediaSourceStream
+    year: String
 }
 
 impl Song {
@@ -82,7 +81,12 @@ impl Clone for Song {
 
 impl From<Song> for Text<'_> {
     fn from(value: Song) -> Self {
-        return Text::raw(value.title)
+        // return Text::raw(value.title)
+        let mut txt = ratatui::text::Text::raw("");
+        txt.push_span(format!("{}\n", value.title.clone()).bold());
+        txt.push_span(" - ");
+        txt.push_span(format!("{}", value.artist.clone()));
+        return txt
     }
 }
 impl From<Song> for String {
@@ -92,18 +96,12 @@ impl From<Song> for String {
 }
 pub struct Queue  {
     pub songs: Vec<Song>,
-    // playing_song: i32,
     pub state: ListState
 }
 
 impl Queue {
-    // pub fn new<T>(controller: &'b mut Sink, songs: Vec<Song>) -> Self {
     pub fn new<T>() -> Self {
         // let mut items: Vec<ListItem> = Vec::new();
-        let songs = [
-            Song::new("./music/Rolling-Contact-One-Night-In-Imperishable.mp3".to_owned()),
-            Song::new("./music/Rolling-Contact-Words-of-Yesterday.mp3".to_owned())
-        ];
         // for s in songs { // create list of songs displayed in the queue tab
         //     let mut txt = ratatui::text::Text::raw("");
 
@@ -114,18 +112,20 @@ impl Queue {
         //     items.push( ListItem::new( txt ) );
         // }
 
-        // let block =  Block::new()
-        //     .border_type(ratatui::widgets::BorderType::Rounded)
-        //     .title("[Q]ueue")
-        //     .borders(Borders::all())
-        //     .border_style(Style::new().red()); // define the border around the queue
         Queue {
             // controller: &mut Sink::try_new(&OutputStream::try_default().unwrap().1).unwrap(),
             // ui_list: List::new(items).block(block),
             // controller: controller,
-            // playing_song: -1,
-            songs: songs.to_vec(),
+            songs: Vec::new(),
             state: ListState::default()
         }
     }
+}
+pub fn dir_to_songs(dir_path: &String) -> Vec<Song> {
+    let paths: fs::ReadDir = fs::read_dir(dir_path).unwrap();
+    let mut songs: Vec<Song> = Vec::new();
+    for p in paths {
+        songs.push(Song::new(p.unwrap().path().display().to_string()));
+    }
+    return songs;
 }

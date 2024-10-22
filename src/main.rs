@@ -6,71 +6,49 @@ use ratatui::{
     buffer::Buffer,
     crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind},
     layout::{Constraint, Layout, Rect},
-    style::{
-        palette::tailwind::{BLUE, SLATE},
-        Color, Modifier, Style, Stylize,
-    },
-    symbols,
-    text::Line,
-    widgets::{
-        Block, BorderType, Borders, HighlightSpacing, List, Padding, Paragraph, StatefulWidget, Widget, Wrap
-    },
+    style::{palette::tailwind::SLATE, Modifier, Style, Stylize},
+    // symbols,
+    // text::{Line, Text},
+    widgets::{Block, BorderType, Borders, HighlightSpacing, List, StatefulWidget, Widget},
     DefaultTerminal,
 };
 use rodio::{Decoder, OutputStream, Sink};
+mod library;
+use library::Library;
 mod playlist;
-use playlist::{Queue, Song};
+use playlist::{dir_to_songs, Queue, Song};
+use tui_tree_widget::{Tree, TreeItem, TreeState};
 
-const TODO_HEADER_STYLE: Style = Style::new().fg(SLATE.c100).bg(BLUE.c800);
-const NORMAL_ROW_BG: Color = SLATE.c950;
-// const ALT_ROW_BG_COLOR: Color = SLATE.c900;
 const SELECTED_STYLE: Style = Style::new().bg(SLATE.c800).add_modifier(Modifier::BOLD);
-const TEXT_FG_COLOR: Color = SLATE.c200;
-// const COMPLETED_TEXT_FG_COLOR: Color = GREEN.c500;
+// const FOCUS_BLOCK_BORDER_STYLE: Style = Style::new().color(ratatui::style::palette::tailwind::LIME);
+// const BLOCK_BORDER_STYLE: Style = Style::new().gray();
 
 fn main() -> Result<()> {
     color_eyre::install()?;
     let terminal = ratatui::init();
-    let app_result = App::default(
-        &mut Sink::try_new(&OutputStream::try_default().unwrap().1).unwrap()
-        // &mut Sink::new_idle().0
-    ).run(terminal);
+    let app_result =
+        App::default(&mut Sink::try_new(&OutputStream::try_default().unwrap().1).unwrap())
+            .run(terminal);
     ratatui::restore();
     app_result
 }
 
 struct App<'a> {
     pub audio_controls: &'a Sink,
-    // pub focus: i8,
+    pub focus: i8,
     pub queue: Queue,
     pub should_exit: bool,
+    pub library: Library<'a>,
 }
-
-// struct TodoList {
-//     items: Vec<TodoItem>,
-//     state: ListState,
-// }
-
-// #[derive(Debug)]
-// struct TodoItem {
-//     todo: String,
-//     info: String,
-//     status: Status,
-// }
-
-// #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-// enum Status {
-//     Todo,
-//     Completed,
-// }
 
 impl<'a> App<'a> {
     fn default(controller: &'a mut Sink) -> Self {
         Self {
             should_exit: false,
-            // focus: 0,
+            focus: 0,
             queue: Queue::new::<Song>(),
-            audio_controls: controller
+            library: Library::new::<Song>(),
+            audio_controls: controller,
         }
     }
 }
@@ -108,33 +86,32 @@ impl<'a> App<'a> {
     }
 
     fn handle_key(&mut self, key: KeyEvent) {
-        if key.kind != KeyEventKind::Press {
-            return;
-        }
-        if key.code == KeyCode::Char('q') && key.modifiers == KeyModifiers::ALT {self.should_exit = true}
-        if key.modifiers == KeyModifiers::SHIFT && (key.code == KeyCode::Char('N') || key.code == KeyCode::Char('N')) {
-            self.skip_one();
-        }
+        if key.kind != KeyEventKind::Press { return; }
+        if key.code == KeyCode::Char('q') && key.modifiers == KeyModifiers::ALT { self.should_exit = true }
+        if key.modifiers == KeyModifiers::SHIFT && (key.code == KeyCode::Char('N') || key.code == KeyCode::Char('N')) { self.skip_one(); }
         match key.code {
-            // KeyCode::Char('a') | KeyCode::Char('A') => self.select_none(),
-            KeyCode::Enter => self.play(),
-            // KeyCode::Char('c') | KeyCode::Char('C') => self.clear(),
-            KeyCode::Char(' ') => self.toggle_playback(),
+            KeyCode::Char('t') => self.focus = 0,
+            KeyCode::Char('p') => self.focus = 1,
+            KeyCode::Char('q') => self.focus = 2,
+            _ => {}
+        }
 
-            KeyCode::Down => self.select_next(),
-            KeyCode::Up => self.select_previous(),
-            // KeyCode::Char('g') | KeyCode::Home => self.select_first(),
-            // KeyCode::Char('G') | KeyCode::End => self.select_last(),
-            // KeyCode::Char('l') | KeyCode::Right | KeyCode::Enter => {
-            //     self.toggle_status();
-            // }
+        match self.focus {
+            2 => match key.code {
+                KeyCode::Enter => self.play(),
+                KeyCode::Char(' ') => self.toggle_playback(),
+                KeyCode::Down => self.select_next(),
+                KeyCode::Up => self.select_previous(),
+                KeyCode::Esc => self.select_none(),
+                _ => {}
+            },
             _ => {}
         }
     }
 
-    // fn select_none(&mut self) {
-    //     self.queue.state.select(None);
-    // }
+    fn select_none(&mut self) {
+        self.queue.state.select(None);
+    }
 
     fn select_next(&mut self) {
         self.queue.state.select_next();
@@ -143,26 +120,17 @@ impl<'a> App<'a> {
         self.queue.state.select_previous();
     }
 
-    // fn select_first(&mut self) {
-    //     self.queue.state.select_first();
-    // }
-
-    // fn select_last(&mut self) {
-    //     self.queue.state.select_last();
-    // }
-
     fn play(&mut self) {
         // self.queue.clear();
         // self.queue.push();
         let index = self.queue.state.selected().unwrap();
         // self.audio_controls.append(self.queue.songs.get(index).unwrap().get_source());
-        self.audio_controls.append(Decoder::new(BufReader::new(File::open(self.queue.songs.get(index).unwrap().path.clone()).unwrap())).unwrap());
-        // if let Some(i) = self.queue.state.selected() {
-            // self.queue.songs[i] = match self.queue.songs[i] {
-            //     Status::Completed => Status::Todo,
-            //     Status::Todo => Status::Completed,
-            // }
-        // }
+        self.audio_controls.append(
+            Decoder::new(BufReader::new(
+                File::open(self.queue.songs.get(index).unwrap().path.clone()).unwrap(),
+            ))
+            .unwrap(),
+        );
     }
     fn skip_one(&mut self) {
         self.audio_controls.skip_one();
@@ -176,43 +144,46 @@ impl<'a> App<'a> {
     }
 }
 
-impl Widget for &mut App<'_> {
+impl<'a> Widget for &mut App<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let [tree_area, main_area, queue_area] = Layout::horizontal([
-            // Constraint::from_percentages([20, 50, 30]),
-            Constraint::Percentage(20),
-            Constraint::Percentage(50),
-            Constraint::Percentage(30)
-        ])
+        let [queue_area, player_area, tree_area] = Layout::horizontal(Constraint::from_percentages([30, 40, 30]))
         .areas(area);
 
-        let [_, item_area] = Layout::vertical([Constraint::Fill(1), Constraint::Fill(1)]).areas(main_area);
-
         self.render_queue(queue_area, buf);
-        App::render_tree(tree_area, buf);
-        // App::render_list(tree_area, buf);
-        self.render_selected_item(item_area, buf);
+        self.render_tree(tree_area, buf);
+        self.render_selected_item(player_area, buf);
     }
 }
 
-impl App<'_> {
-    // fn render_list(area: Rect, buf: &mut Buffer) {
-    //     Paragraph::new("Queue")
-    //         .bold()
-    //         .centered()
-    //         .render(area, buf);
-    // }
-
-    fn render_tree(area: Rect, buf: &mut Buffer) {
-        Paragraph::new("[ALT]+[Q] to exit")
-            .centered()
-            .render(area, buf);
+impl<'a> App<'a> {
+    fn render_tree(&self, area: Rect, buf: &mut Buffer) {
+        let block = Block::new()
+        .borders(Borders::all())
+            .title("[T]ree / [ALT]+[Q] to exit")
+            .border_type(BorderType::Rounded)
+            .border_style(if self.focus==0 {Style::new().green()}else{Style::new().red()});
+        
+        let mut state = TreeState::default();
+        
+        let mut items = Vec::new(); // = TreeItem::new_leaf("l", "leaf");
+        for song in &dir_to_songs(&"./music/".to_owned()) {
+            items.push(TreeItem::new_leaf(song.path.to_string(), song.title.to_string()));
+        }
+        
+        let tree_widget = Tree::new(&items)
+            .expect("all item identifiers are unique")
+            .block(block);
+        StatefulWidget::render(tree_widget, area, buf, &mut state);
     }
 
     fn render_queue(&mut self, area: Rect, buf: &mut Buffer) {
         let block = Block::new()
-            .title(Line::raw("Playback queue").centered())
-            .borders(Borders::all()).border_type(BorderType::Rounded);
+            .border_type(ratatui::widgets::BorderType::Rounded)
+            .title("Playback [q]ueue")
+            .borders(Borders::all())
+            // .border_style(Style::new().red()); // define the border around the queue
+            .border_style(if self.focus==2 {Style::new().green()}else{Style::new().red()});
+
 
         let items: Vec<playlist::Song> = self
             .queue
@@ -221,8 +192,7 @@ impl App<'_> {
             .enumerate()
             .map(|(_, s)| {
                 // let color = alternate_colors(i);
-                let song = s;
-                playlist::Song::from((*song).clone())
+                playlist::Song::from((*s).clone())
             })
             .collect();
 
@@ -236,11 +206,10 @@ impl App<'_> {
     }
 
     fn render_selected_item(&self, area: Rect, buf: &mut Buffer) {
-        // We get the info depending on the item's state.
         let info = if let Some(_) = self.queue.state.selected() {
             // match self.queue.songs[i] {
-                // Status::Completed => format!("✓ DONE: {}", self.queue.songs[i].info),
-                // Status::Todo => format!("☐ TODO: {}", self.queue.songs[i].info),
+            // Status::Completed => format!("✓ DONE: {}", self.queue.songs[i].info),
+            // Status::Todo => format!("☐ TODO: {}", self.queue.songs[i].info),
             // }
             "Nothing selected...".to_string()
         } else {
@@ -248,20 +217,21 @@ impl App<'_> {
         };
 
         // We show the list item's info under the list in this paragraph
-        let block = Block::new()
-            .title(Line::raw("TODO Info").centered())
-            .borders(Borders::TOP)
-            .border_set(symbols::border::EMPTY)
-            .border_style(TODO_HEADER_STYLE)
-            .bg(NORMAL_ROW_BG)
-            .padding(Padding::horizontal(1));
+        // let block = Block::new();
+        // .title(Line::raw("TODO Info").centered())
+        // .borders(Borders::TOP)
+        // .border_set(symbols::border::EMPTY)
+        // .border_style(TODO_HEADER_STYLE)
+        // .bg(NORMAL_ROW_BG)
+        // .padding(Padding::horizontal(1));
 
         // We can now render the item info
-        Paragraph::new(info)
-            .block(block)
-            .fg(TEXT_FG_COLOR)
-            .wrap(Wrap { trim: false })
-            .render(area, buf);
+        // Paragraph::new(info)
+        //     .block(block)
+        //     .fg(TEXT_FG_COLOR)
+        //     .wrap(Wrap { trim: false })
+        //     .render(area, buf);
+        // StatefulWidget::render(list, area, buf, &mut self.queue.state);
     }
 }
 
