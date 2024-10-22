@@ -9,16 +9,16 @@ use symphonia::default::get_probe;
 pub struct Song {
     pub path: String,
 	pub title: String,
-	artist: String,
-    album: String,
-    track_num: String,
-    album_tracks_total: String,
-    year: String
+	pub artist: String,
+    pub album: String,
+    pub track_num: String,
+    pub album_tracks_total: String,
+    pub year: String
 }
 
 impl Song {
     pub fn new(path: String) -> Self {
-        let file: File = File::open(&path).expect("Failed to open file");
+        let file: File = File::open(&path).expect(&format!("Failed to open file {}", path.clone()));
         let probe = get_probe();
         let mut format = probe.format(
             &Default::default(),
@@ -113,13 +113,18 @@ impl Queue {
         // }
 
         Queue {
-            // controller: &mut Sink::try_new(&OutputStream::try_default().unwrap().1).unwrap(),
-            // ui_list: List::new(items).block(block),
-            // controller: controller,
             songs: Vec::new(),
             state: ListState::default()
         }
     }
+
+    pub fn push_from_path(&mut self, path: &String) {
+        self.songs.push(Song::new(path.clone()));
+    }
+
+    // pub fn go_to() {
+        
+    // }
 }
 pub fn dir_to_songs(dir_path: &String) -> Vec<Song> {
     let paths: fs::ReadDir = fs::read_dir(dir_path).unwrap();
