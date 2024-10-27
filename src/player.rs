@@ -1,16 +1,13 @@
-use ratatui::{buffer::Buffer, layout::Rect, style::{Color, Style}, widgets::Widget};
+use std::rc::Rc;
 
-pub struct Button {
-    label: String
-}
+use ratatui::{layout::{Constraint, Direction, Layout, Rect}, Frame};
 
-impl Widget for Button {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        // let style = if self.is_pressed {
-        //     self.pressed_style.unwrap_or_else(|| Style::default().fg(Color::Blue))
-        // } else {
-        //     self.style
-        // };
-        buf.set_string(area.left(), area.top(), &self.label, Style::default());
-    }
+fn get_layout(f: &Frame) -> Rc<[Rect]> {
+    Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Percentage(60),
+            Constraint::Percentage(100 - 60),
+        ])
+        .split(f.area())
 }
